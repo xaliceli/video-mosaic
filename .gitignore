@@ -120,3 +120,5 @@ dmypy.json
 *.jpg
 *.jpeg
 *.avi
+*.DS_Store
+*Icon?
