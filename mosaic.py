@@ -18,7 +18,10 @@ def resize_image(image, dims, resize=True):
         row_factor = float(dims[0]) / image.shape[0]
         col_factor = float(dims[1]) / image.shape[1]
         factor = np.float(max(row_factor, col_factor))
-        image = cv2.resize(image, None, factor, factor, cv2.INTER_AREA)
+        if factor < 1:
+            image = cv2.resize(image, None, fx=factor, fy=factor, interpolation=cv2.INTER_AREA)
+        else:
+            image = cv2.resize(image, None, fx=factor, fy=factor, interpolation=cv2.INTER_LINEAR)
     resized = image[(image.shape[0] - dims[0])/2:(image.shape[0] - dims[0])/2 + dims[0],
                     (image.shape[1] - dims[1])/2:(image.shape[1] - dims[1])/2 + dims[1]]
     return resized
@@ -89,7 +92,6 @@ class VideoMosaic():
             count = 0
             while success:
                 print('Reading source frame from video ' + str(count))
-                # image = image[10:image.shape[0] - 10, ...]
                 if np.all(np.std(image, axis=(0, 1)) > 1):
                     cv2.imwrite(os.path.join(source_dir, 'frame{0:04d}.jpg'.format(count/frame_int)), image)
                     image = np.array([resize_image(image, (self.tile_size, self.tile_size))])
@@ -109,7 +111,7 @@ class VideoMosaic():
         good = np.random.choice(match_values[0])
         return good
 
-    def generate_mosaic(self, target, dims, out, frate=16):
+    def generate_mosaic(self, target, dims, blur, out, frate=16):
         """
         Generates and writes video mosaic.
         """
@@ -126,12 +128,12 @@ class VideoMosaic():
                     region = frame[row - self.tile_size:row, col - self.tile_size:col]
                     best = self.tiles[self.good_match(region), ...]
                     out[row - self.tile_size:row, col - self.tile_size:col, :] = best
-            cv2.imshow('frame', np.uint8(out))
-            cv2.waitKey(25)
+            if blur:
+                out = cv2.GaussianBlur(out, (21, 21), 0)
             writer.write(np.uint8(out))
         writer.release()
 
-def main(source, size, color, output=True):
+def main(source, size, out_size, color, blur, output=True):
     """
     Generate mosaics.
     """
@@ -143,13 +145,16 @@ def main(source, size, color, output=True):
         vid_paths = [os.path.join('input', '*.' + ext) for ext in vid_extensions]
         video_files = sorted(sum(map(glob, vid_paths), []))
         for vnum, vid in enumerate(video_files):
-            mosaic.generate_mosaic(vid, (800, 1200),
+            mosaic.generate_mosaic(vid, out_size, blur,
                                    os.path.join('output', source, 'mosaic' + str(vnum) + '.avi'))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Generate video mosaic.')
     parser.add_argument('source', help='Tile source directory.')
-    parser.add_argument('size', help='Tile size')
-    parser.add_argument('--color', help='Color map to apply to tiles.', default=None)
+    parser.add_argument('size', help='Tile size.')
+    parser.add_argument('out_size', help='Size of output video as tuple in form (rows, columns).',
+                        default=(800, 1200))
+    parser.add_argument('--color', help='OpenCV color map to apply to tiles.', default=None)
+    parser.add_argument('--blur', help='Apply a Gaussian blur to frames.', default=False)
     args = parser.parse_args()
-    main(args.source, args.size, args.color)
+    main(args.source, args.size, args.out_size, args.color, args.blur)
