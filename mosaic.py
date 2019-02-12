@@ -10,6 +10,8 @@ import sys
 import cv2
 import numpy as np
 
+from texture import Texture
+
 def resize_image(image, dims, resize=True):
     """
     Resizes image to supplied dimensions, preserving aspect ratio.
@@ -111,29 +113,41 @@ class VideoMosaic():
         good = np.random.choice(match_values[0])
         return good
 
-    def generate_mosaic(self, target, dims, blur, out, frate=16):
+    def generate_mosaic(self, target, dims, blur, out, vtype, frate=16):
         """
         Generates and writes video mosaic.
         """
-        self.frames = np.zeros((0, dims[0], dims[1], 3))
-        self.init_target(target, dims)
-
         writer = cv2.VideoWriter(out, cv2.VideoWriter_fourcc('X', 'V', 'I', 'D'),
                                  frate, (dims[1], dims[0]))
-        for fnum, frame in enumerate(self.frames):
-            print('Generating output frame ' + str(fnum))
-            out = np.zeros(frame.shape)
-            for row in range(self.tile_size, dims[0] + 1, self.tile_size):
-                for col in range(self.tile_size, dims[1] + 1, self.tile_size):
-                    region = frame[row - self.tile_size:row, col - self.tile_size:col]
-                    best = self.tiles[self.good_match(region), ...]
-                    out[row - self.tile_size:row, col - self.tile_size:col, :] = best
+        reader = cv2.VideoCapture(target)
+        success, image = reader.read()
+        count = 0
+        texturize = None
+        while success:
+            print('Reading target frame ' + str(count))
+            frame = resize_image(image, dims)
+            print('Generating output frame ' + str(count))
+            if vtype == 'mosaic':
+                out_frame = np.zeros(frame.shape)
+                for row in range(self.tile_size, dims[0] + 1, self.tile_size):
+                    for col in range(self.tile_size, dims[1] + 1, self.tile_size):
+                        region = frame[row - self.tile_size:row, col - self.tile_size:col]
+                        best = self.tiles[self.good_match(region), ...]
+                        out_frame[row - self.tile_size:row, col - self.tile_size:col, :] = best
+            elif vtype == 'texture':
+                if texturize is None:
+                    texturize = Texture((dims[0], dims[1], 3), 25)
+                    texturize.set_candidates(self.tiles, 3, True)
+                out_frame = texturize.gen_texture(None, frame, 3, .5)
             if blur:
-                out = cv2.GaussianBlur(out, (21, 21), 0)
-            writer.write(np.uint8(out))
+                out_frame = cv2.GaussianBlur(out_frame, (21, 21), 0)
+            writer.write(np.uint8(out_frame))
+            success, image = reader.read()
+            count += 1
+        reader.release()
         writer.release()
 
-def main(source, size, out_size, color, blur, output=True):
+def main(source, target, size, out_size, color, blur, vtype='mosaic', output=True):
     """
     Generate mosaics.
     """
@@ -142,19 +156,22 @@ def main(source, size, out_size, color, blur, output=True):
         if not os.path.exists(os.path.join('output', source)):
             os.makedirs(os.path.join('output', source))
         vid_extensions = ['mov', 'avi', 'mp4']
-        vid_paths = [os.path.join('input', '*.' + ext) for ext in vid_extensions]
+        vid_paths = [os.path.join('input', target, '*.' + ext) for ext in vid_extensions]
         video_files = sorted(sum(map(glob, vid_paths), []))
         for vnum, vid in enumerate(video_files):
             mosaic.generate_mosaic(vid, out_size, blur,
-                                   os.path.join('output', source, 'mosaic' + str(vnum) + '.avi'))
+                                   os.path.join('output', source, 'mosaic' + str(vnum) + '.avi'),
+                                   vtype)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Generate video mosaic.')
     parser.add_argument('source', help='Tile source directory.')
+    parser.add_argument('target', help='Target source directory.')
     parser.add_argument('size', help='Tile size.')
-    parser.add_argument('out_size', help='Size of output video as tuple in form (rows, columns).',
+    parser.add_argument('vtype', help='Mosaic or texture.')
+    parser.add_argument('--out_size', help='Size of output video as tuple in form (rows, columns).',
                         default=(800, 1200))
     parser.add_argument('--color', help='OpenCV color map to apply to tiles.', default=None)
     parser.add_argument('--blur', help='Apply a Gaussian blur to frames.', default=False)
     args = parser.parse_args()
-    main(args.source, args.size, args.out_size, args.color, args.blur)
+    main(args.source, args.target, args.size, args.out_size, args.color, args.blur, args.vtype)
