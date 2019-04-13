@@ -24,8 +24,8 @@ def resize_image(image, dims, resize=True):
             image = cv2.resize(image, None, fx=factor, fy=factor, interpolation=cv2.INTER_AREA)
         else:
             image = cv2.resize(image, None, fx=factor, fy=factor, interpolation=cv2.INTER_LINEAR)
-    resized = image[(image.shape[0] - dims[0])/2:(image.shape[0] - dims[0])/2 + dims[0],
-                    (image.shape[1] - dims[1])/2:(image.shape[1] - dims[1])/2 + dims[1]]
+    resized = image[int((image.shape[0] - dims[0])/2):int((image.shape[0] - dims[0])/2 + dims[0]),
+                    int((image.shape[1] - dims[1])/2):int((image.shape[1] - dims[1])/2 + dims[1])]
     return resized
 
 def boost_color(image, random=True, percent=0.1):
@@ -170,7 +170,7 @@ if __name__ == '__main__':
     parser.add_argument('size', help='Tile size.')
     parser.add_argument('vtype', help='Mosaic or texture.')
     parser.add_argument('--out_size', help='Size of output video as tuple in form (rows, columns).',
-                        default=(800, 1200))
+                        default=(1600, 2400))
     parser.add_argument('--color', help='OpenCV color map to apply to tiles.', default=None)
     parser.add_argument('--blur', help='Apply a Gaussian blur to frames.', default=False)
     args = parser.parse_args()

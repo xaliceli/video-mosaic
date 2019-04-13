@@ -30,6 +30,7 @@ class Texture():
         self.adj_wind = self.w - self.w/6
         self.candidates = None
         self.candidates_gray = None
+        self.intensities = None
 
         # Initialize empty array of appropriate size for output, padding for additional rows/cols
         # if desired dimensions are not fully divisible by window size.
@@ -95,6 +96,7 @@ class Texture():
         # Calculate grayscale version of each patch.
         if correspondence:
             self.candidates_gray = np.average(self.candidates, axis=3, weights=[0.114, 0.587, 0.299])
+            self.intensities = np.average(self.candidates_gray, axis=(1, 2))
 
     def calc_errors(self, up, left):
         """
@@ -148,7 +150,7 @@ class Texture():
 
         # Randomly selects a candidate within error tolerance
         match_values = np.where(tot_errors <= np.min(tot_errors) * (1 + min_err))
-        match_index = match_values[0][random.randint(0, match_values[0].shape[0] - 1)]
+        match_index = np.random.choice(match_values[0])
 
         return self.candidates[match_index], errors[match_index]
 
